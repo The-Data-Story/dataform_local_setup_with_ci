@@ -1,0 +1,19 @@
+config {
+  type: "view",
+  database: dataform.projectConfig.vars.project,
+  schema: dataform.projectConfig.vars.schema,
+}
+
+-- Inline JavaScript block for dynamic variables and logic
+js {
+  var _project = dataform.projectConfig.vars.project;
+  var _dataset = dataform.projectConfig.vars.source1_dataset;
+}
+
+SELECT
+  order_id,
+  customer_id,
+  order_date,
+  total_amount,
+  updated_at
+FROM ${ref("orders")}

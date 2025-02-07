@@ -1,0 +1,67 @@
+#!/bin/bash
+
+# Path to the root dataform directory
+#DATAFORM_DIR="$(dirname "$(dirname "$0")")"
+
+# Paths to the configuration files
+DEV_CONFIG="src/local_run_commands/workflow_settings_dev.yaml"
+PROD_CONFIG="src/local_run_commands/workflow_settings_prod.yaml"
+TARGET_CONFIG="workflow_settings.yaml"
+
+# Function to display help
+function display_help() {
+  echo "Usage: $0 <dev|prod|help>"
+  echo
+  echo "Options:"
+  echo "  dev      Switch to the development environment by copying the dev configuration."
+  echo "  prod     Switch to the production environment by copying the prod configuration."
+  echo "  help     Display this help message."
+  echo
+  echo "Description:"
+  echo "  This script switches the workflow settings for the Dataform environment"
+  echo "  between 'dev' (development) and 'prod' (production) by copying the respective"
+  echo "  configuration file to the root directory as 'workflow_settings.yaml'."
+  echo
+  echo "Examples:"
+  echo "  $0 dev      # Switch to the development environment."
+  echo "  $0 prod     # Switch to the production environment."
+  echo "  $0 help     # Display this help message."
+}
+
+# Check if an argument is provided
+if [ -z "$1" ]; then
+  echo "Error: No environment specified."
+  display_help
+  exit 1
+fi
+
+ENVIRONMENT=$1
+
+# Handle the help option
+if [ "$ENVIRONMENT" == "help" ]; then
+  display_help
+  exit 0
+fi
+
+# Copy the appropriate configuration file
+if [ "$ENVIRONMENT" == "dev" ]; then
+  if [ -f "$DEV_CONFIG" ]; then
+    cp "$DEV_CONFIG" "$TARGET_CONFIG"
+    echo "Switched to development environment."
+  else
+    echo "Error: $DEV_CONFIG not found."
+    exit 1
+  fi
+elif [ "$ENVIRONMENT" == "prod" ]; then
+  if [ -f "$PROD_CONFIG" ]; then
+    cp "$PROD_CONFIG" "$TARGET_CONFIG"
+    echo "Switched to production environment."
+  else
+    echo "Error: $PROD_CONFIG not found."
+    exit 1
+  fi
+else
+  echo "Invalid environment: $ENVIRONMENT. Use 'dev', 'prod', or 'help'."
+  display_help
+  exit 1
+fi

@@ -1,0 +1,14 @@
+config {
+  type: "table",
+  database: dataform.projectConfig.vars.project,
+  schema: dataform.projectConfig.vars.schema,
+  uniqueKey: ["extra_field"],
+  dependencies: [
+    "order_summary",  // Correctly reference the dependency
+  ]
+}
+
+SELECT
+  's' as extra_field,
+  cast(SUM(o.total_revenue) as string) AS total_revenue
+FROM ${ref("order_summary")} o

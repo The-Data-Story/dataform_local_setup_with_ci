@@ -1,0 +1,22 @@
+{
+    "tables": [
+      {
+        "source_project": "prod-project",
+        "source_dataset": "source_dataset1",
+        "source_table": "event_20240201",
+        "target_project": "dev-project",
+        "location": "EU",
+        "partition_size": 10000,
+        "max_rows": 39990000
+      },
+      {
+        "source_project": "prod-project",
+        "source_dataset": "source_dataset2",
+        "source_table": "orders",
+        "target_project": "dev-project",
+        "location": "EU",
+        "partition_size": 100,
+        "max_rows": 500000
+      }
+    ]
+  }

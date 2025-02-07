@@ -1,0 +1,123 @@
+#!/bin/bash
+
+# Usage: dataform_exec [mode] [additional_arguments]
+# Modes:
+#   test      - Run environment validation and then execute 'dataform test'
+#   run       - Run environment validation and then execute 'dataform run'
+#   compile   - Run environment validation and then execute 'dataform compile'
+#   help      - Display help information
+
+# Path to the workflow settings YAML
+CONFIG_FILE="workflow_settings.yaml"
+
+# Expected environment value
+EXPECTED_ENV="dev"
+
+# Display help information
+function display_help() {
+  echo "Usage: dataform_exec [mode] [additional_arguments]"
+  echo
+  echo "Modes:"
+  echo "  test      Run environment validation and then execute 'dataform test'"
+  echo "  run       Run environment validation and then execute 'dataform run'"
+  echo "  compile   Run environment validation and then execute 'dataform compile'"
+  echo "  help      Display this help information"
+  echo
+  echo "Additional Arguments:"
+  echo "  You can pass additional arguments to the 'dataform' command, such as:"
+  echo "    --vars=SAMPLE_VAR=SAMPLE_VALUE,foo=bar"
+  echo "    --full-refresh"
+  echo "    --dry-run"
+  echo
+  echo "Example:"
+  echo "  dataform_exec test --vars=SAMPLE_VAR=SAMPLE_VALUE,foo=bar"
+  echo "  dataform_exec run --dry-run"
+  echo "  dataform_exec run --full-refresh"
+  echo "  dataform_exec compile"
+}
+
+# Environment validation function
+function validate_environment() {
+  echo "Validating environment configuration..."
+  
+  # Check if the configuration file exists
+  if [ ! -f "$CONFIG_FILE" ]; then
+    echo "Validation failed: Configuration file '$CONFIG_FILE' not found."
+    exit 1
+  fi
+
+  # Extract the environment value from the YAML file
+  CURRENT_ENV=$(awk '/vars:/{flag=1; next} /environment:/{if(flag){print $2; exit}}' "$CONFIG_FILE")
+
+  # Check if the current environment matches the expected environment
+  if [ "$CURRENT_ENV" != "$EXPECTED_ENV" ]; then
+    echo "Validation failed: Environment is set to '$CURRENT_ENV'. Expected: '$EXPECTED_ENV'."
+    exit 1
+  fi
+
+  echo "Validation passed: Environment is correctly set to '$EXPECTED_ENV'."
+}
+
+# Ensure a mode is provided
+if [ -z "$1" ]; then
+  echo "Error: No mode specified. Use 'dataform_exec help' for usage information."
+  display_help
+  exit 1
+fi
+
+MODE=$1
+shift # Remove the first argument (mode) to pass the rest to the dataform command
+
+# Define the commands for each mode
+case "$MODE" in
+  help)
+    display_help
+    ;;
+
+  test)
+    echo "Running environment validation..."
+    validate_environment
+    echo "Environment validation successful. Proceeding with Dataform test..."
+    echo "Command: dataform test $@"
+    if ! dataform test "$@"; then
+      echo "Dataform test failed."
+      exit 1
+    fi
+    echo "Dataform test completed successfully!"
+    ;;
+
+  run)
+    if [[ "$@" == *"--dry-run"* ]]; then
+      echo "Command: dataform run $@"
+      if ! dataform run "$@"; then
+        echo "Dataform run failed."
+        exit 1
+      fi
+    else
+      echo "Running environment validation..."
+      validate_environment
+      echo "Environment validation successful. Proceeding with Dataform run..."
+      echo "Command: dataform run $@"
+      if ! dataform run "$@"; then
+        echo "Dataform run failed."
+        exit 1
+      fi
+    fi
+    echo "Dataform run completed successfully!"
+    ;;
+    
+  compile)
+    echo "Command: dataform compile $@"
+    if ! dataform compile "$@"; then
+      echo "Dataform compile failed."
+      exit 1
+    fi
+    echo "Dataform compile completed successfully!"
+    ;;
+
+  *)
+    echo "Error: Invalid mode '$MODE'. Use 'dataform_exec help' for usage information."
+    display_help
+    exit 1
+    ;;
+esac

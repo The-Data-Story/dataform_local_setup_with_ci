@@ -1,0 +1,205 @@
+name: Test Dataform Changes/Flow Validation
+
+on:
+  push:
+    branches:
+      - dev
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  run-cli-trigger:
+    
+    if: >
+      github.event_name == 'pull_request' || 
+      (github.event_name == 'push' && 
+      github.actor != 'github-actions[bot]' &&
+      startsWith(github.event.head_commit.message, 'runTest'))
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Determine Branch Name
+        id: branch_name
+        run: |
+          if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
+            echo "BRANCH_NAME=${{ github.base_ref }}" >> $GITHUB_ENV
+          else
+            BRANCH_NAME=$(echo "${GITHUB_REF}" | sed 's|refs/heads/||')
+            echo "BRANCH_NAME=$BRANCH_NAME" >> $GITHUB_ENV
+          fi
+      
+      - name: Validate environment settings
+        run: |
+          bash ./src/validate_settings.sh workflow_settings.yaml $BRANCH_NAME
+
+      - name: Debug Current Directory and Structure
+        run: |
+          echo "Current Directory: $(pwd)"
+          ls -al
+          echo "Listing src/ if it exists:"
+          if [ -d "./src" ]; then
+            ls -al ./src
+          fi
+  
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.10"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: "18"
+
+      - name: Install NPM Dependencies (if package.json exists)
+        run: |
+          if [ -f "package.json" ]; then
+            echo "Installing dependencies..."
+            npm install
+          else
+            echo "No package.json found. Skipping NPM install."
+          fi
+
+      - name: Install Dataform CLI
+        run: npm install -g @dataform/cli@^3.0.0
+
+      - name: Set up Google Cloud SDK and Authenticate
+        run: |
+          echo "${{ secrets.GCPKEY }}" > /tmp/gcpkey.json
+          gcloud auth activate-service-account --key-file=/tmp/gcpkey.json
+          echo "GOOGLE_APPLICATION_CREDENTIALS=/tmp/gcpkey.json" >> $GITHUB_ENV
+
+      - name: Compile Dataform Queries
+        run: |
+          mkdir -p src/tests/compiled_queries
+          npx dataform compile --json > src/tests/compiled_queries/result.json
+
+      - name: Install Python Dependencies
+        run: |
+            python -m pip install --upgrade pip
+            pip install -r requirements.txt
+
+      - name: Run Tests and Generate Logs
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: /tmp/gcpkey.json
+        run: |
+            python src/tests/schema_test.py || true  # Run schema tests
+  
+      - name: Ensure Permissions for /tmp/test_log.json
+        run: chmod 666 /tmp/test_log.json  # Ensure the file is readable
+  
+      - name: Check for Warnings and Errors
+        id: check_logs
+        run: |
+          if [ -f "/tmp/test_log.json" ]; then
+            echo "File /tmp/test_log.json found."
+
+            WARNINGS=$(jq -r '.warnings[]' /tmp/test_log.json | sed ':a;N;$!ba;s/\n/\\n/g')
+            ERRORS=$(jq -r '.errors[]' /tmp/test_log.json | sed ':a;N;$!ba;s/\n/\\n/g')
+            
+            echo "::set-output name=warnings::$WARNINGS"
+            echo "::set-output name=errors::$ERRORS"
+          else
+            echo "No test_log.json found."
+            echo "::set-output name=warnings::"
+            echo "::set-output name=errors::"
+          fi
+
+      - name: Commit and Push Changes
+        if: ${{ github.event_name != 'pull_request' }}
+        run: |
+          # Configure Git
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+
+          # Initialize commit message
+          COMMIT_MSG="Test results:"
+
+          # Check for warnings and errors in the log file
+          WARNINGS=""
+          ERRORS=""
+
+          if [ -f "/tmp/test_log.json" ]; then
+            WARNINGS=$(jq -r '.warnings[]' /tmp/test_log.json)
+            ERRORS=$(jq -r '.errors[]' /tmp/test_log.json)
+
+            # Transform warnings and errors to replace escaped '\n' with actual newlines
+            WARNINGS=$(echo -e "$WARNINGS")
+            ERRORS=$(echo -e "$ERRORS")
+          fi
+
+          # Only create a commit if there are warnings or errors
+          if [ -n "$WARNINGS" ] || [ -n "$ERRORS" ]; then
+            if [ -n "$ERRORS" ]; then
+              COMMIT_MSG+="
+
+          Errors:
+          $ERRORS"
+            fi
+            if [ -n "$WARNINGS" ]; then
+              COMMIT_MSG+="
+
+          Warnings:
+          $WARNINGS"
+            fi
+
+            # Create an empty commit and push
+            git commit --allow-empty -F- <<EOF
+          $COMMIT_MSG
+          EOF
+            git push || echo "Failed to push changes."
+          else
+            echo "No warnings or errors. No commit created."
+          fi
+
+      - name: Update Pull Request Description
+        if: ${{ github.event_name == 'pull_request' }}
+        env:
+            GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Use GitHub-provided token
+        run: |
+            # Extract warnings and errors
+            WARNINGS=$(jq -r '.warnings[]' /tmp/test_log.json)
+            ERRORS=$(jq -r '.errors[]' /tmp/test_log.json)
+  
+            # Format the message
+            PR_BODY="Test results:"
+            [ -n "$ERRORS" ] && PR_BODY+="
+  
+            Errors:
+            $ERRORS"
+            [ -n "$WARNINGS" ] && PR_BODY+="
+  
+            Warnings:
+            $WARNINGS"
+  
+            # Update the pull request description
+            gh pr edit ${{ github.event.pull_request.number }} --body "$PR_BODY"
+
+      - name: Fail if Errors Exist
+        run: |
+          # Check for warnings and errors in the log file
+          WARNINGS=""
+          ERRORS=""
+
+          if [ -f "/tmp/test_log.json" ]; then
+            WARNINGS=$(jq -r '.warnings[]' /tmp/test_log.json)
+            ERRORS=$(jq -r '.errors[]' /tmp/test_log.json)
+
+            # Transform warnings and errors to replace escaped '\n' with actual newlines
+            WARNINGS=$(echo -e "$WARNINGS")
+            ERRORS=$(echo -e "$ERRORS")
+          fi
+            
+          if [ -n "$ERRORS" ]; then
+            echo "Errors detected in the log:"
+            echo "$ERRORS"
+            exit 1  # Fail the workflow
+          else
+            echo "No errors detected."
+          fi

@@ -1,0 +1,7 @@
+{
+    "main_branch": "main",
+    "dev_allowed_branches": ["dev", "feature/*"],
+    "prod_allowed_branches": ["main"],
+    "default_environment": "dev"
+  }
+  

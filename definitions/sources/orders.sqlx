@@ -1,0 +1,7 @@
+config {
+  type: "declaration",
+  database: dataform.projectConfig.vars.project,
+  schema: dataform.projectConfig.vars.source1_dataset,
+  name: "orders",
+  description: "raw badges table"
+}

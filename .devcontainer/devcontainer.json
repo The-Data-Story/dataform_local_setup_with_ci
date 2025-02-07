@@ -1,0 +1,29 @@
+{
+	"name": "Dataform Development Environment",
+	"build": {
+	  "dockerfile": "Dockerfile",
+	  "context": ".."
+	},
+	"workspaceFolder": "/dataform",
+	"settings": {
+	  "terminal.integrated.defaultProfile.linux": "bash"
+	},
+	"extensions": [
+	  "dbaeumer.vscode-eslint", 
+	  "esbenp.prettier-vscode",
+	  "bstruct.vscode-bigquery",
+	  "ms-python.python",
+	  "mhutchie.git-graph",
+	  "Evidence.sqltools-bigquery-driver",
+	  "hediet.vscode-drawio"
+	],
+	"postCreateCommand": "", 
+	"remoteUser": "node",
+	"mounts": [
+	  "source=${localWorkspaceFolder},target=/dataform,type=bind,consistency=cached"
+	],
+	"features": {
+	  "node": "16",
+      "ghcr.io/dhoeric/features/google-cloud-cli:1": {}
+	}
+}

@@ -1,0 +1,50 @@
+config {
+  type: "incremental",
+  database: dataform.projectConfig.vars.project,
+  schema: dataform.projectConfig.vars.schema,
+  bigquery: {
+    clusterBy: ["customer_id"],
+    partitionBy: "order_date"
+  },
+  uniqueKey: ["order_id"],
+  dependencies: [
+    "staging_orders"
+  ]
+}
+pre_operations {
+    DECLARE constraint_exists BOOL;
+    SET constraint_exists = (
+      SELECT COUNT(*) > 0
+      FROM `${dataform.projectConfig.vars.project}.${dataform.projectConfig.vars.schema}.INFORMATION_SCHEMA.TABLE_CONSTRAINTS`
+      WHERE table_name = 'order_summary'
+        AND constraint_type = 'PRIMARY KEY' 
+    )
+  }
+
+-- Add primary key for metadata
+post_operations {
+    select constraint_exists;
+    IF NOT constraint_exists THEN
+      ALTER TABLE ${self()} ADD PRIMARY KEY (customer_id) NOT ENFORCED;
+    END IF;
+  }
+
+-- Inline JavaScript block for dynamic variables and logic
+js {
+  var incremental_where =  " where order_date = date_sub(current_date(), interval 5 day)";
+  var prod_project = dataform.projectConfig.vars.project;
+  var prod_dataset = dataform.projectConfig.vars.source1_dataset;
+}
+
+-- Use helper to calculate revenue
+SELECT
+  order_id,
+  customer_id,
+  order_date,
+  ${helpers.calculateRevenue('total_amount')} AS total_revenue,
+  updated_at
+FROM ${ref("staging_orders")}
+
+ ${when(incremental(),
+        incremental_where,"" )}
+

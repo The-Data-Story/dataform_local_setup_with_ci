@@ -1,0 +1,10 @@
+defaultProject: prod_project
+defaultLocation: EU
+defaultDataset: dataform_model
+defaultAssertionDataset: dataform_model_assertions
+dataformCoreVersion: 3.0.0
+vars:
+  environment: prod
+  schema: dataform_model
+  project: prod_project
+  source1_dataset: analytics_351111111
